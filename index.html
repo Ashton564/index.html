@@ -4,99 +4,140 @@
     <meta charset="UTF-8">
     <title>IDE++</title>
     <style>
-        body { background: #000; color: #8e44ad; font-family: 'SF Mono', monospace; margin: 0; padding: 20px; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; overflow: hidden; }
-        #terminal { flex: 1; overflow-y: auto; border: 1px solid #1a1a1a; padding: 15px; margin-bottom: 10px; background: #000; border-radius: 5px; white-space: pre-wrap; }
-        
-        .editor-container { display: flex; background: #000; border-radius: 5px; padding: 10px; border: 1px solid #1a1a1a; }
-        #line-numbers { color: #333; text-align: right; padding-right: 12px; user-select: none; font-size: 14px; line-height: 1.5; border-right: 1px solid #1a1a1a; margin-right: 12px; min-width: 25px; }
-        
-        .input-wrap { flex: 1; display: flex; }
-        textarea { background: transparent; border: none; color: #00ff41; outline: none; width: 100%; font-size: 14px; font-family: inherit; line-height: 1.5; resize: none; overflow: hidden; padding: 0; margin: 0; }
+        /* Force true black on the entire viewport */
+        html, body { 
+            background: #000; 
+            color: #8e44ad; 
+            font-family: 'SF Mono', monospace; 
+            margin: 0; 
+            padding: 0; 
+            height: 100vh; 
+            overflow: hidden; 
+        }
 
-        .controls { display: flex; gap: 10px; margin-top: 10px; align-items: center; justify-content: flex-end; }
-        .prompt { font-weight: bold; color: #8e44ad; margin-right: auto; }
-        .btn { background: #111; color: #8e44ad; border: 1px solid #333; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; font-family: inherit; }
-        
-        /* Hardware Status Bar */
-        #status-bar { margin-top: 15px; padding-top: 10px; border-top: 1px solid #1a1a1a; display: flex; justify-content: space-between; font-size: 11px; color: #444; text-transform: uppercase; letter-spacing: 1px; }
+        /* Top Navigation Bar */
+        .nav-bar {
+            display: flex;
+            background: #0a0a0a;
+            padding: 10px 20px;
+            border-bottom: 1px solid #1a1a1a;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .tab { color: #444; font-size: 12px; cursor: pointer; text-transform: uppercase; font-weight: bold; }
+        .tab.active { color: #4d935b; border: 1px solid #4d935b; padding: 2px 8px; border-radius: 2px; }
+
+        /* Split Screen Container */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 100px); /* Adjusting for Nav and Status bar */
+        }
+
+        /* Left Side: Editor */
+        .editor-side {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #1a1a1a;
+            padding: 15px;
+        }
+
+        /* Right Side: Preview (The part that was white) */
+        .preview-side {
+            flex: 1;
+            background: #000; /* Force this to black */
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        #terminal-output {
+            white-space: pre-wrap;
+            color: #8e44ad;
+        }
+
+        /* The Input Area from Line 43 */
+        .editor-box {
+            display: flex;
+            background: #050505;
+            border: 1px solid #1a1a1a;
+            border-radius: 4px;
+            padding: 10px;
+            flex: 1;
+        }
+
+        #line-numbers { color: #222; text-align: right; padding-right: 10px; border-right: 1px solid #111; margin-right: 10px; font-size: 14px; }
+
+        textarea {
+            background: transparent; border: none; color: #00ff41; outline: none;
+            width: 100%; font-family: inherit; font-size: 14px; resize: none;
+        }
+
+        /* Buttons from your image */
+        .btn-group { display: flex; gap: 10px; margin-left: auto; }
+        .btn { padding: 6px 15px; border-radius: 3px; font-weight: bold; font-family: inherit; cursor: pointer; border: none; font-size: 12px; }
+        .btn-ai { background: #3b2a4d; color: #8e44ad; }
+        .btn-run { background: #2d4d3b; color: #4d935b; }
+
+        #status-bar { height: 30px; background: #0a0a0a; border-top: 1px solid #1a1a1a; display: flex; align-items: center; padding: 0 20px; font-size: 10px; color: #333; justify-content: space-between; }
     </style>
 </head>
 <body>
 
-<div id="terminal">
-    <span style="color: #333;">// IDE++ KERNEL v4.8 | STATUS_BAR: ENABLED</span>
-</div>
-
-<div class="editor-container">
-    <div id="line-numbers">1</div>
-    <div class="input-wrap">
-        <textarea id="ide-input" name="IDE++" spellcheck="true" rows="1" autofocus></textarea>
+<div class="nav-bar">
+    <div class="tab active">HTML/JS</div>
+    <div class="tab">PYTHON</div>
+    <div class="tab">LINUX</div>
+    <div class="tab">SWIFT</div>
+    
+    <div class="btn-group">
+        <button class="btn btn-ai">AI ASSIST</button>
+        <button class="btn btn-run" onclick="runCode()">RUN</button>
     </div>
 </div>
 
-<div class="controls">
-    <span class="prompt">SYSTEM ></span>
-    <button class="btn" onclick="toggleFullscreen()">EXPAND</button>
-    <button class="btn" onclick="saveLogs()">ARCHIVE</button>
+<div class="main-container">
+    <div class="editor-side">
+        <div class="editor-box">
+            <div id="line-numbers">1</div>
+            <textarea id="ide-input" name="IDE++" spellcheck="true" autofocus></textarea>
+        </div>
+    </div>
+
+    <div class="preview-side">
+        <div id="terminal-output"></div>
+    </div>
 </div>
 
 <div id="status-bar">
-    <div id="kernel-ver">A17 PRO KERNEL</div>
-    <div id="live-clock">00:00:00</div>
-    <div id="live-date">2026-02-10</div>
+    <span>A17 PRO KERNEL // CORE ACTIVE</span>
+    <span id="live-time">00:00:00</span>
 </div>
 
 <script>
     const input = document.getElementById('ide-input');
-    const terminal = document.getElementById('terminal');
+    const output = document.getElementById('terminal-output');
     const lineNumbers = document.getElementById('line-numbers');
-    const clockEl = document.getElementById('live-clock');
-    const dateEl = document.getElementById('live-date');
 
-    // Live Clock Logic
-    function updateClock() {
-        const now = new Date();
-        clockEl.innerText = now.toLocaleTimeString([], {hour12: false});
-        dateEl.innerText = now.toISOString().split('T')[0];
-    }
-    setInterval(updateClock, 1000);
-    updateClock();
-
+    // Live Line Numbers
     input.addEventListener('input', () => {
         const lines = input.value.split('\n').length;
         lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
-        input.style.height = 'auto';
-        input.style.height = input.scrollHeight + 'px';
     });
 
-    input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            const val = input.value;
-            if (!val) return;
-            terminal.innerHTML += `<br><span style="color:#444;">[${clockEl.innerText}] ></span><br>${val.replace(/\n/g, '<br>')}<br>`;
-            input.value = "";
-            lineNumbers.innerHTML = "1";
-            input.style.height = 'auto';
-            terminal.scrollTop = terminal.scrollHeight;
-        }
-    });
-
-    function toggleFullscreen() {
-        if (!document.fullscreenElement) document.documentElement.requestFullscreen();
-        else document.exitFullscreen();
+    function runCode() {
+        const val = input.value;
+        if (!val) return;
+        output.innerHTML += `<br><span style="color:#444;">> Executing...</span><br>${val}`;
+        input.value = "";
+        lineNumbers.innerHTML = "1";
     }
 
-    function saveLogs() {
-        let name = prompt("Session Name:");
-        if (name === null) return;
-        const fileName = `IDE_${dateEl.innerText}_${name || 'Log'}.html`;
-        const blob = new Blob([`<html><body style="background:#000;color:#8e44ad;font-family:monospace;padding:30px;">${terminal.innerHTML}</body></html>`], { type: 'text/html' });
-        const anchor = document.createElement('a');
-        anchor.download = fileName;
-        anchor.href = window.URL.createObjectURL(blob);
-        anchor.click();
-    }
+    // Status Clock
+    setInterval(() => {
+        document.getElementById('live-time').innerText = new Date().toLocaleTimeString();
+    }, 1000);
 </script>
+
 </body>
 </html>
