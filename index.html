@@ -1,124 +1,165 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IDE++</title>
+    
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+
     <style>
-        /* Force zero margins and hidden overflow to match screenshot edges */
-        * { box-sizing: border-box; }
-        body, html { 
-            background: #000; 
-            margin: 0; padding: 0; 
-            height: 100vh; width: 100vw;
-            font-family: 'SF Mono', monospace; 
-            overflow: hidden; 
-        }
-
-        /* Top Nav: Strict Black with bottom border only */
-        nav {
-            height: 50px;
-            background: #000;
-            display: flex;
-            align-items: center;
-            padding: 0 10px;
-            border-bottom: 1px solid #1a1a1a;
-            position: relative;
-            z-index: 10;
-        }
-
-        /* Green-bordered Tabs exactly like the image */
-        .tab {
-            background: transparent;
-            color: #4d935b;
-            border: 1px solid #4d935b;
-            padding: 4px 10px;
-            margin-right: 15px;
-            font-size: 11px;
-            cursor: pointer;
-            text-transform: uppercase;
-        }
+        :root { --accent: #4caf50; --ai-purple: #bb86fc; --save-blue: #00bcd4; --clear-red: #ff5252; }
+        body { margin: 0; background: #0b0b0b; font-family: 'SF Mono', monospace; display: flex; height: 100vh; color: #fff; overflow: hidden; }
         
-        /* De-emphasized Tabs for other languages */
-        .tab-dim { border-color: transparent; color: #333; }
-
-        .right-actions { margin-left: auto; display: flex; gap: 10px; }
-
-        .ai-btn { background: #2b1d3d; color: #8e44ad; border: none; padding: 6px 15px; font-weight: bold; cursor: pointer; font-size: 11px; }
-        .run-btn { background: #000; color: #4d935b; border: 1px solid #4d935b; padding: 6px 15px; font-weight: bold; cursor: pointer; font-size: 11px; }
-
-        /* The Core Split: 50/50 */
-        main { display: flex; height: calc(100vh - 50px); width: 100%; }
-
-        /* Left side: Pure Black Editor */
-        .editor-container {
-            flex: 1;
-            background: #000;
-            display: flex;
-            padding: 15px;
-        }
+        #left-panel { width: 50%; display: flex; flex-direction: column; border-right: 1px solid #222; position: relative; }
+        #right-panel { width: 50%; background: #000; position: relative; }
         
-        #gutter { color: #1a1a1a; text-align: right; padding-right: 10px; border-right: 1px solid #0a0a0a; margin-right: 10px; font-size: 14px; line-height: 1.5; }
-
-        /* LINE 43: No placeholder, true black background */
-        textarea {
-            flex: 1;
-            background: transparent; border: none; color: #00ff41; outline: none;
-            font-family: inherit; font-size: 14px; line-height: 1.5; resize: none;
-        }
-
-        /* Right side: Pure White Output */
-        .output-panel {
-            flex: 1;
-            background: #fff !important;
-            padding: 0;
-            overflow-y: auto;
-        }
+        #tabs { background: #111; display: flex; padding: 10px; gap: 8px; border-bottom: 1px solid #222; align-items: center; }
+        .tab { color: #666; font-size: 11px; cursor: pointer; padding: 6px 10px; border: 1px solid transparent; text-transform: uppercase; }
+        .tab.active { color: var(--accent); border: 1px solid var(--accent); }
+        
+        /* New Project Name Input */
+        #project-name { background: #000; border: 1px solid #333; color: var(--save-blue); font-size: 11px; padding: 5px; outline: none; width: 120px; }
+        
+        #editor { flex: 1; background: #0b0b0b; color: #d4d4d4; border: none; padding: 20px; font-size: 16px; outline: none; resize: none; line-height: 1.5; }
+        #preview { width: 100%; height: 100%; border: none; background: #fff; }
+        .overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; padding: 25px; box-sizing: border-box; z-index: 5; overflow-y: auto; }
+        
+        .controls { position: absolute; top: 15px; right: 15px; z-index: 1000; display: flex; gap: 8px; align-items: center; }
+        #status-light { width: 10px; height: 10px; background: var(--clear-red); border-radius: 50%; box-shadow: 0 0 5px var(--clear-red); }
+        
+        button { background: rgba(0,0,0,0.8); border: 1px solid var(--accent); color: var(--accent); padding: 8px 12px; cursor: pointer; font-size: 10px; font-weight: bold; text-transform: uppercase; }
+        
+        #library-panel { display: none; position: absolute; left: 0; top: 45px; width: 220px; height: calc(100% - 45px); background: #111; border-right: 1px solid var(--accent); z-index: 2000; padding: 15px; }
+        .snippet-btn { width: 100%; margin-bottom: 10px; text-align: left; border-color: #333; color: #aaa; }
+        
+        #l-in { background: none; border: none; color: #fff; outline: none; width: 80%; font-family: monospace; font-size: 16px; }
     </style>
 </head>
 <body>
 
-<nav>
-    <button class="tab" onclick="setMode('HTML/JS')">HTML/JS</button>
-    <button class="tab tab-dim" onclick="setMode('PYTHON')">PYTHON</button>
-    <button class="tab tab-dim" onclick="setMode('LINUX')">LINUX</button>
-    <button class="tab tab-dim" onclick="setMode('SWIFT')">SWIFT</button>
-    
-    <div class="right-actions">
-        <button class="ai-btn">AI ASSIST</button>
-        <button class="run-btn" onclick="run()">RUN</button>
+    <div id="left-panel">
+        <div id="tabs">
+            <button onclick="toggleLib()" style="border-color:#888; color:#888;">LIB</button>
+            <input type="text" id="project-name" value="my_project" title="Enter filename here">
+            <div id="html-tab" class="tab active" onclick="setMode('HTML')">HTML</div>
+            <div id="python-tab" class="tab" onclick="setMode('Python')">Python</div>
+            <div id="linux-tab" class="tab" onclick="setMode('Linux')">Linux</div>
+            <div id="swift-tab" class="tab" onclick="setMode('Swift')">Swift</div>
+            <button onclick="clearCanvas()" style="border-color:var(--clear-red); color:var(--clear-red); margin-left:auto;">CLEAR</button>
+        </div>
+        
+        <div id="library-panel">
+            <div style="color:var(--accent); margin-bottom:15px; font-size:12px;">PROJECT SNIPPETS</div>
+            <button class="snippet-btn" onclick="inject('HTML_BTN')">Neon Button (HTML)</button>
+            <button class="snippet-btn" onclick="inject('JS_BOUNCE')">Physics Loop (JS)</button>
+            <button class="snippet-btn" onclick="inject('PY_SERVER')">Server Command (PY)</button>
+        </div>
+
+        <textarea id="editor" spellcheck="false" placeholder="// Start coding..."></textarea>
     </div>
-</nav>
 
-<main>
-    <section class="editor-container">
-        <div id="gutter">1</div>
-        <textarea id="ide-input" name="IDE++" spellcheck="true" autofocus></textarea>
-    </section>
+    <div id="right-panel">
+        <div class="controls">
+            <div id="status-light"></div>
+            <button style="border-color:var(--ai-purple); color:var(--ai-purple);" onclick="runAI()">AI ASSIST</button>
+            <button style="border-color:var(--save-blue); color:var(--save-blue);" onclick="save()">SAVE</button>
+            <button onclick="run()">RUN</button>
+        </div>
+        <iframe id="preview"></iframe>
+        <div id="linux-term" class="overlay">
+            <div id="l-history">Limitless OS v3.8<br></div>
+            <br>
+            <span style="color:var(--accent)">root@system:~#</span> <input type="text" id="l-in" autofocus>
+        </div>
+        <div id="log-view" class="overlay" onclick="this.style.display='none'"></div>
+    </div>
 
-    <section class="output-panel" id="console">
-        </section>
-</main>
+    <script>
+        let mode = 'HTML';
+        let pyodide;
 
-<script>
-    const input = document.getElementById('ide-input');
-    const gutter = document.getElementById('gutter');
+        async function init() { pyodide = await loadPyodide(); }
+        init();
 
-    // Tab switcher
-    function setMode(mode) {
-        console.log("Kernel: " + mode);
-    }
+        function setMode(m) {
+            mode = m;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(m.toLowerCase() + '-tab').classList.add('active');
+            document.querySelectorAll('.overlay').forEach(o => o.style.display = 'none');
+            if (m === 'Linux') document.getElementById('linux-term').style.display = 'block';
+        }
 
-    // Line numbers logic
-    input.addEventListener('input', () => {
-        const count = input.value.split('\n').length;
-        gutter.innerHTML = Array.from({length: count}, (_, i) => i + 1).join('<br>');
-    });
+        function clearCanvas() {
+            if(confirm("Wipe the editor?")) document.getElementById('editor').value = "";
+        }
 
-    function run() {
-        const out = document.getElementById('console');
-        out.innerHTML += `<div style="color:black; padding:10px; font-family:monospace;">> Executing...</div>`;
-    }
-</script>
+        function toggleLib() {
+            const lp = document.getElementById('library-panel');
+            lp.style.display = lp.style.display === 'block' ? 'none' : 'block';
+        }
 
+        function inject(type) {
+            const ed = document.getElementById('editor');
+            const snip = {
+                'HTML_BTN': '<button style="background:#000; color:#4caf50; border:2px solid #4caf50; padding:15px;">ACTIVE</button>',
+                'JS_BOUNCE': '// Animation Logic\nfunction animate() {\n console.log("running...");\n requestAnimationFrame(animate);\n}',
+                'PY_SERVER': 'python3 -m http.server 8000'
+            };
+            ed.value += "\n" + snip[type];
+            toggleLib();
+        }
+
+        async function run() {
+            const code = document.getElementById('editor').value;
+            const pre = document.getElementById('preview').contentWindow.document;
+            if (mode === 'HTML') {
+                pre.open(); pre.write(code); pre.close();
+            } else if (mode === 'Python') {
+                pre.open(); pre.write(`<body style="background:#000;color:#4caf50;padding:20px;font-family:monospace;"><pre id="o"></pre></body>`);
+                try {
+                    pyodide.runPython(`import sys, io; sys.stdout = io.StringIO()`);
+                    await pyodide.runPythonAsync(code);
+                    pre.getElementById('o').innerText = pyodide.runPython("sys.stdout.getvalue()");
+                } catch(e) { pre.getElementById('o').innerText = e; }
+                pre.close();
+            }
+        }
+
+        function runAI() {
+            const code = document.getElementById('editor').value;
+            const log = document.getElementById('log-view');
+            log.style.display = 'block';
+            let advice = "No errors found. Logic is clean.";
+            if (mode === 'Python' && code.includes('def') && !code.includes(':')) advice = "AI Error: Missing colon (:) in function.";
+            log.innerHTML = `<div style="color:var(--ai-purple)">[AI ADVISOR]</div><br>> ${advice}`;
+        }
+
+        function save() {
+            const name = document.getElementById('project-name').value;
+            const ext = mode === 'Python' ? '.py' : mode === 'HTML' ? '.html' : mode === 'Swift' ? '.swift' : '.txt';
+            const blob = new Blob([document.getElementById('editor').value], {type: 'text/plain'});
+            const a = document.createElement('a');
+            a.download = name + ext;
+            a.href = window.URL.createObjectURL(blob);
+            a.click();
+        }
+
+        const lIn = document.getElementById('l-in');
+        const lHist = document.getElementById('l-history');
+        lIn.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const cmd = lIn.value;
+                lHist.innerHTML += `<div><span style="color:var(--accent)">root@system:~#</span> ${cmd}</div>`;
+                if (cmd.includes('python3 -m http.server')) {
+                    document.getElementById('status-light').style.background = '#4caf50';
+                    document.getElementById('status-light').style.boxShadow = '0 0 10px #4caf50';
+                    lHist.innerHTML += "<div>[NETWORK] Server is now LIVE.</div>";
+                }
+                lIn.value = "";
+            }
+        });
+    </script>
 </body>
 </html>
