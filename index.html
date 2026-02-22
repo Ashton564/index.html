@@ -45,8 +45,8 @@ body {
     gap: 8px;
     border-bottom: 1px solid #222;
     align-items: center;
-    overflow-x: auto;      /* scrollable tabs */
-    white-space: nowrap;   /* keep in one line */
+    overflow-x: auto;
+    white-space: nowrap;
     scrollbar-width: thin;
 }
 
@@ -84,6 +84,14 @@ body {
     outline: none;
     resize: none;
     line-height: 1.5;
+    tab-size: 4;
+    white-space: pre;
+}
+
+/* error highlighting */
+#editor.error {
+    border: 1px solid #ff4444;
+    box-shadow: 0 0 8px #ff4444;
 }
 
 #preview {
@@ -166,6 +174,23 @@ button {
     font-family: monospace;
     font-size: 16px;
 }
+
+/* cosmic autocomplete bubble */
+#autocomplete-box {
+    position: absolute;
+    background: rgba(0, 255, 0, 0.12);
+    border: 1px solid #00ff88;
+    color: #00ff88;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: monospace;
+    border-radius: 6px;
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 0 12px #00ff88;
+    display: none;
+    z-index: 9999;
+}
 </style>
 </head>
 <body>
@@ -196,6 +221,7 @@ button {
     </div>
 
     <textarea id="editor" spellcheck="true" placeholder=""></textarea>
+    <div id="autocomplete-box"></div>
 </div>
 
 <div id="right-panel">
@@ -233,11 +259,13 @@ function setMode(m) {
     document.getElementById(m.toLowerCase() + '-tab').classList.add('active');
     document.querySelectorAll('.overlay').forEach(o => o.style.display = 'none');
     if (m === 'Linux') document.getElementById('linux-term').style.display = 'block';
+    checkErrors(); // re-check errors when mode changes
 }
 
 function clearCanvas() {
     if (confirm("Wipe the editor?"))
         document.getElementById('editor').value = "";
+    checkErrors();
 }
 
 function toggleLib() {
@@ -251,10 +279,11 @@ function inject(type) {
         'HTML_BTN': '<button style="background:#000; color:#4caf50; border:2px solid #4caf50; padding:15px;">ACTIVE</button>',
         'JS_BOUNCE': '// Animation Logic\nfunction animate() {\n console.log("running...");\n requestAnimationFrame(animate);\n}',
         'PY_SERVER': 'python3 -m http.server 8000',
-        'RUST_HELLO': 'fn main() {\\n    println!("Hello from Rust!");\\n}',
-        'JAVA_HELLO': 'public class Main {\\n  public static void main(String[] args) {\\n    System.out.println("Hello from Java!");\\n  }\\n}'
+        'RUST_HELLO': 'fn main() {\n    println!("Hello from Rust!");\n}',
+        'JAVA_HELLO': 'public class Main {\n  public static void main(String[] args) {\n    System.out.println("Hello from Java!");\n  }\n}'
     };
     ed.value += "\n" + (snip[type] || '');
+    checkErrors();
     toggleLib();
 }
 
@@ -346,6 +375,236 @@ lIn.addEventListener('keydown', (e) => {
         }
 
         lIn.value = "";
+    }
+});
+
+// ===============================
+// COSMIC EDITOR ENGINE
+// ===============================
+
+const editor = document.getElementById("editor");
+const acBox = document.getElementById("autocomplete-box");
+
+const acSuggestions = {
+    Python: ["print()", "def ", "class ", "import ", "return ", "range()", "len()", "if ", "elif ", "else:", "for ", "while "],
+    HTML: ["<div>", "<span>", "<script>", "<style>", "<img>", "<p>", "<a>", "<ul>", "<li>", "<header>", "<footer>"],
+    Cpp: ["int ", "std::cout << ;", "std::string ", "return ", "class ", "for ", "while ", "if ", "else "],
+    Rust: ["fn ", "let ", "println!()", "match ", "struct ", "impl ", "use "],
+    Java: ["public ", "class ", "static ", "void ", "System.out.println()", "if ", "else ", "for ", "while "],
+    Swift: ["func ", "let ", "var ", "import ", "print()", "if ", "else ", "for ", "while "],
+    Linux: ["ls", "cd", "mkdir", "rm", "touch", "cat", "echo"]
+};
+
+let acMatches = [];
+let acIndex = 0;
+
+function getCaretCoordinates() {
+    const rect = editor.getBoundingClientRect();
+    const start = editor.selectionStart;
+
+    const text = editor.value.substring(0, start);
+    const span = document.createElement("span");
+    span.style.visibility = "hidden";
+    span.style.whiteSpace = "pre-wrap";
+    span.style.font = window.getComputedStyle(editor).font;
+    span.textContent = text.replace(/\n/g, "\n");
+    document.body.appendChild(span);
+
+    const coords = span.getBoundingClientRect();
+    document.body.removeChild(span);
+
+    return {
+        x: coords.left - rect.left,
+        y: coords.top - rect.top
+    };
+}
+
+function showAutocomplete(suggestion) {
+    const pos = getCaretCoordinates();
+    acBox.style.left = pos.x + "px";
+    acBox.style.top = (pos.y + 20) + "px";
+    acBox.textContent = suggestion;
+    acBox.style.display = "block";
+}
+
+function hideAutocomplete() {
+    acBox.style.display = "none";
+    acMatches = [];
+    acIndex = 0;
+}
+
+function checkErrors() {
+    const text = editor.value;
+    let error = false;
+
+    // bracket/brace/paren balance
+    const stack = [];
+    const pairs = { ")": "(", "]": "[", "}": "{" };
+    for (let ch of text) {
+        if (ch === "(" || ch === "[" || ch === "{") stack.push(ch);
+        if (ch === ")" || ch === "]" || ch === "}") {
+            if (stack.pop() !== pairs[ch]) {
+                error = true;
+                break;
+            }
+        }
+    }
+    if (!error && stack.length > 0) {
+        error = true;
+    }
+
+    // HTML tag balance
+    if (!error && mode === "HTML") {
+        const tagStack = [];
+        const tagRegex = /<\/?([a-zA-Z0-9]+)[^>]*>/g;
+        let m;
+        while ((m = tagRegex.exec(text)) !== null) {
+            const full = m[0];
+            const name = m[1];
+            if (full.startsWith("</")) {
+                if (tagStack.pop() !== name) {
+                    error = true;
+                    break;
+                }
+            } else if (!full.endsWith("/>")) {
+                tagStack.push(name);
+            }
+        }
+        if (!error && tagStack.length > 0) {
+            error = true;
+        }
+    }
+
+    if (error) {
+        editor.classList.add("error");
+    } else {
+        editor.classList.remove("error");
+    }
+}
+
+function autoCloseHtmlTag() {
+    const cursor = editor.selectionStart;
+    const text = editor.value;
+    const before = text.substring(0, cursor);
+    const match = before.match(/<([a-zA-Z0-9]+)[^>]*>$/);
+    if (!match) return;
+
+    const tag = match[1];
+    if (before.endsWith("/>") || tag.startsWith("!")) return;
+
+    const insert = `</${tag}>`;
+    const after = text.substring(cursor);
+    editor.value = before + insert + after;
+    editor.selectionStart = editor.selectionEnd = cursor;
+}
+
+editor.addEventListener("input", () => {
+    const text = editor.value;
+    const cursorPos = editor.selectionStart;
+
+    const before = text.substring(0, cursorPos);
+    const match = before.match(/[\w<>!]+$/);
+    if (!match) {
+        hideAutocomplete();
+        checkErrors();
+        return;
+    }
+
+    const currentWord = match[0];
+    const list = acSuggestions[mode] || [];
+
+    acMatches = list.filter(s => s.startsWith(currentWord));
+    acIndex = 0;
+
+    if (acMatches.length === 0) {
+        hideAutocomplete();
+    } else {
+        showAutocomplete(acMatches[0]);
+    }
+
+    checkErrors();
+});
+
+editor.addEventListener("keydown", (e) => {
+    // Tab / Shift+Tab: cycle suggestions
+    if (e.key === "Tab" && acBox.style.display === "block") {
+        e.preventDefault();
+
+        if (e.shiftKey) {
+            acIndex = (acIndex - 1 + acMatches.length) % acMatches.length;
+            showAutocomplete(acMatches[acIndex]);
+            return;
+        }
+
+        if (acMatches.length > 1) {
+            acIndex = (acIndex + 1) % acMatches.length;
+            showAutocomplete(acMatches[acIndex]);
+            return;
+        }
+    }
+
+    // Enter: accept suggestion
+    if (e.key === "Enter" && acBox.style.display === "block") {
+        e.preventDefault();
+
+        const suggestion = acMatches[acIndex];
+        const cursorPos = editor.selectionStart;
+        const text = editor.value;
+
+        const before = text.substring(0, cursorPos);
+        const after = text.substring(cursorPos);
+
+        const match = before.match(/[\w<>!]+$/);
+        if (!match) return;
+
+        const start = match.index;
+        const newText = before.substring(0, start) + suggestion + after;
+
+        editor.value = newText;
+
+        const parenIndex = suggestion.indexOf("(");
+        if (parenIndex !== -1 && suggestion.endsWith(")")) {
+            editor.selectionStart = editor.selectionEnd = start + parenIndex + 1;
+        } else {
+            editor.selectionStart = editor.selectionEnd = start + suggestion.length;
+        }
+
+        hideAutocomplete();
+        checkErrors();
+        return;
+    }
+
+    // Auto-indent when no autocomplete bubble
+    if (e.key === "Enter" && acBox.style.display !== "block") {
+        e.preventDefault();
+
+        const cursorPos = editor.selectionStart;
+        const text = editor.value;
+
+        const before = text.substring(0, cursorPos);
+        const after = text.substring(cursorPos);
+
+        const lineStart = before.lastIndexOf("\n") + 1;
+        const currentLine = before.substring(lineStart);
+        const indentMatch = currentLine.match(/^\s*/);
+        let indent = indentMatch ? indentMatch[0] : "";
+
+        const trimmed = currentLine.trimEnd();
+        if (/[{:]$/.test(trimmed)) {
+            indent += "    ";
+        }
+
+        const insert = "\n" + indent;
+        editor.value = before + insert + after;
+        editor.selectionStart = editor.selectionEnd = cursorPos + insert.length;
+
+        checkErrors();
+        return;
+    }
+
+    // HTML tag auto-closing on ">"
+    if (e.key === ">" && mode === "HTML") {
+        setTimeout(autoCloseHtmlTag, 0);
     }
 });
 </script>
