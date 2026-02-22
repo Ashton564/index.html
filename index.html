@@ -12,7 +12,7 @@
     --save-blue: #00bcd4; 
     --clear-red: #ff5252; 
 } 
-
+ 
 body { 
     margin: 0; 
     background: #0b0b0b; 
@@ -22,7 +22,7 @@ body {
     color: #fff; 
     overflow: hidden; 
 } 
-
+ 
 #left-panel { 
     width: 50%; 
     display: flex; 
@@ -30,13 +30,13 @@ body {
     border-right: 1px solid #222; 
     position: relative; 
 } 
-
+ 
 #right-panel { 
     width: 50%; 
     background: #000; 
     position: relative; 
 } 
-
+ 
 #tabs { 
     background: #111; 
     display: flex; 
@@ -45,7 +45,7 @@ body {
     border-bottom: 1px solid #222; 
     align-items: center; 
 } 
-
+ 
 .tab { 
     color: #666; 
     font-size: 11px; 
@@ -54,13 +54,12 @@ body {
     border: 1px solid transparent; 
     text-transform: uppercase; 
 } 
-
+ 
 .tab.active { 
     color: var(--accent); 
     border: 1px solid var(--accent); 
 } 
-
-/* New Project Name Input */ 
+ 
 #project-name { 
     background: #000; 
     border: 1px solid #333; 
@@ -70,7 +69,7 @@ body {
     outline: none; 
     width: 120px; 
 } 
-
+ 
 #editor { 
     flex: 1; 
     background: #0b0b0b; 
@@ -82,14 +81,14 @@ body {
     resize: none; 
     line-height: 1.5; 
 } 
-
+ 
 #preview { 
     width: 100%; 
     height: 100%; 
     border: none; 
     background: #fff; 
 } 
-
+ 
 .overlay { 
     display: none; 
     position: absolute; 
@@ -103,7 +102,7 @@ body {
     z-index: 5; 
     overflow-y: auto; 
 } 
-
+ 
 .controls { 
     position: absolute; 
     top: 15px; 
@@ -113,7 +112,7 @@ body {
     gap: 8px; 
     align-items: center; 
 } 
-
+ 
 #status-light { 
     width: 10px; 
     height: 10px; 
@@ -121,7 +120,7 @@ body {
     border-radius: 50%; 
     box-shadow: 0 0 5px var(--clear-red); 
 } 
-
+ 
 button { 
     background: rgba(0,0,0,0.8); 
     border: 1px solid var(--accent); 
@@ -132,7 +131,7 @@ button {
     font-weight: bold; 
     text-transform: uppercase; 
 } 
-
+ 
 #library-panel { 
     display: none; 
     position: absolute; 
@@ -145,7 +144,7 @@ button {
     z-index: 2000; 
     padding: 15px; 
 } 
-
+ 
 .snippet-btn { 
     width: 100%; 
     margin-bottom: 10px; 
@@ -153,7 +152,7 @@ button {
     border-color: #333; 
     color: #aaa; 
 } 
-
+ 
 #l-in { 
     background: none; 
     border: none; 
@@ -166,31 +165,39 @@ button {
 </style> 
 </head> 
 <body> 
-
+ 
 <div id="left-panel"> 
     <div id="tabs"> 
         <button onclick="toggleLib()" style="border-color:#888; color:#888;">LIB</button> 
         <input type="text" id="project-name" value="my_project" title="Enter filename here"> 
-
+ 
         <div id="html-tab" class="tab active" onclick="setMode('HTML')">HTML</div> 
         <div id="python-tab" class="tab" onclick="setMode('Python')">Python</div> 
         <div id="cpp-tab" class="tab" onclick="setMode('Cpp')">C++</div> 
         <div id="linux-tab" class="tab" onclick="setMode('Linux')">Linux</div> 
         <div id="swift-tab" class="tab" onclick="setMode('Swift')">Swift</div> 
 
+        <!-- NEW TABS -->
+        <div id="rust-tab" class="tab" onclick="setMode('Rust')">Rust</div>
+        <div id="java-tab" class="tab" onclick="setMode('Java')">Java</div>
+ 
         <button onclick="clearCanvas()" style="border-color:var(--clear-red); color:var(--clear-red); margin-left:auto;">CLEAR</button> 
     </div> 
-
+ 
     <div id="library-panel"> 
         <div style="color:var(--accent); margin-bottom:15px; font-size:12px;">PROJECT SNIPPETS</div> 
         <button class="snippet-btn" onclick="inject('HTML_BTN')">Neon Button (HTML)</button> 
         <button class="snippet-btn" onclick="inject('JS_BOUNCE')">Physics Loop (JS)</button> 
-        <button class="snippet-btn" onclick="inject('PY_SERVER')">Server Command (PY)</button> 
-    </div> 
+        <button class="snippet-btn" onclick="inject('PY_SERVER')">Server Command (PY)</button>
 
+        <!-- NEW SNIPPETS -->
+        <button class="snippet-btn" onclick="inject('RUST_HELLO')">Hello World (Rust)</button>
+        <button class="snippet-btn" onclick="inject('JAVA_HELLO')">Hello World (Java)</button>
+    </div> 
+ 
     <textarea id="editor" spellcheck="true" placeholder=""></textarea> 
 </div> 
-
+ 
 <div id="right-panel"> 
     <div class="controls"> 
         <div id="status-light"></div> 
@@ -198,28 +205,28 @@ button {
         <button style="border-color:var(--save-blue); color:var(--save-blue);" onclick="save()">SAVE</button> 
         <button onclick="run()">RUN</button> 
     </div> 
-
+ 
     <iframe id="preview"></iframe> 
-
+ 
     <div id="linux-term" class="overlay"> 
         <div id="l-history">Limitless OS v3.8<br></div> 
         <br> 
         <span style="color:var(--accent)">root@system:~#</span> 
         <input type="text" id="l-in" autofocus> 
     </div> 
-
+ 
     <div id="log-view" class="overlay" onclick="this.style.display='none'"></div> 
 </div> 
-
+ 
 <script> 
 let mode = 'HTML'; 
 let pyodide; 
-
+ 
 async function init() { 
     pyodide = await loadPyodide(); 
 } 
 init(); 
-
+ 
 function setMode(m) { 
     mode = m; 
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); 
@@ -227,37 +234,43 @@ function setMode(m) {
     document.querySelectorAll('.overlay').forEach(o => o.style.display = 'none'); 
     if (m === 'Linux') document.getElementById('linux-term').style.display = 'block'; 
 } 
-
+ 
 function clearCanvas() { 
     if (confirm("Wipe the editor?")) 
         document.getElementById('editor').value = ""; 
 } 
-
+ 
 function toggleLib() { 
     const lp = document.getElementById('library-panel'); 
     lp.style.display = lp.style.display === 'block' ? 'none' : 'block'; 
 } 
-
+ 
 function inject(type) { 
     const ed = document.getElementById('editor'); 
     const snip = { 
         'HTML_BTN': '<button style="background:#000; color:#4caf50; border:2px solid #4caf50; padding:15px;">ACTIVE</button>', 
         'JS_BOUNCE': '// Animation Logic\nfunction animate() {\n console.log("running...");\n requestAnimationFrame(animate);\n}', 
-        'PY_SERVER': 'python3 -m http.server 8000' 
+        'PY_SERVER': 'python3 -m http.server 8000',
+
+        /* NEW SNIPPETS */
+        'RUST_HELLO': 'fn main() {\\n    println!("Hello from Rust!");\\n}',
+        'JAVA_HELLO': 'public class Main {\\n  public static void main(String[] args) {\\n    System.out.println("Hello from Java!");\\n  }\\n}'
     }; 
     ed.value += "\n" + snip[type]; 
     toggleLib(); 
 } 
-
+ 
 async function run() { 
     const code = document.getElementById('editor').value; 
     const pre = document.getElementById('preview').contentWindow.document; 
-
+ 
     if (mode === 'HTML') { 
         pre.open(); 
         pre.write(code); 
         pre.close(); 
-    } else if (mode === 'Python') { 
+    } 
+
+    else if (mode === 'Python') { 
         pre.open(); 
         pre.write(`<body style="background:#000;color:#4caf50;padding:20px;font-family:monospace;"><pre id="o"></pre></body>`); 
         try { 
@@ -268,50 +281,74 @@ async function run() {
             pre.getElementById('o').innerText = e; 
         } 
         pre.close(); 
-    } 
-} 
+    }
 
+    /* NEW RUST PREVIEW */
+    else if (mode === 'Rust') {
+        pre.open();
+        pre.write(`
+            <body style="background:#000;color:#ff9800;padding:20px;font-family:monospace;">
+                <pre>Rust mode active. Compilation not supported in-browser.</pre>
+            </body>
+        `);
+        pre.close();
+    }
+
+    /* NEW JAVA PREVIEW */
+    else if (mode === 'Java') {
+        pre.open();
+        pre.write(`
+            <body style="background:#000;color:#4caf50;padding:20px;font-family:monospace;">
+                <pre>Java mode active. Compilation not supported in-browser.</pre>
+            </body>
+        `);
+        pre.close();
+    }
+} 
+ 
 function runAI() { 
     const code = document.getElementById('editor').value; 
     const log = document.getElementById('log-view'); 
     log.style.display = 'block'; 
-
+ 
     let advice = "No errors found. Logic is clean."; 
     if (mode === 'Python' && code.includes('def') && !code.includes(':')) 
         advice = "AI Error: Missing colon (:) in function."; 
-
+ 
     log.innerHTML = `<div style="color:var(--ai-purple)">[AI ADVISOR]</div><br>> ${advice}`; 
 } 
-
+ 
 function save() { 
     const name = document.getElementById('project-name').value; 
     const ext = mode === 'Python' ? '.py' 
               : mode === 'HTML' ? '.html' 
               : mode === 'Swift' ? '.swift' 
               : mode === 'Cpp' ? '.cpp' 
+              : mode === 'Rust' ? '.rs'
+              : mode === 'Java' ? '.java'
               : '.txt'; 
-
+ 
     const blob = new Blob([document.getElementById('editor').value], {type: 'text/plain'}); 
     const a = document.createElement('a'); 
     a.download = name + ext; 
     a.href = window.URL.createObjectURL(blob); 
     a.click(); 
 } 
-
+ 
 const lIn = document.getElementById('l-in'); 
 const lHist = document.getElementById('l-history'); 
-
+ 
 lIn.addEventListener('keydown', (e) => { 
     if (e.key === 'Enter') { 
         const cmd = lIn.value; 
         lHist.innerHTML += `<div><span style="color:var(--accent)">root@system:~#</span> ${cmd}</div>`; 
-
+ 
         if (cmd.includes('python3 -m http.server')) { 
             document.getElementById('status-light').style.background = '#4caf50'; 
             document.getElementById('status-light').style.boxShadow = '0 0 10px #4caf50'; 
             lHist.innerHTML += "<div>[NETWORK] Server is now LIVE.</div>"; 
         } 
-
+ 
         lIn.value = ""; 
     } 
 }); 
