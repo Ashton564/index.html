@@ -1,612 +1,712 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ideOS+</title>
-<link rel="apple-touch-icon" href="icon.png">
-<script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
-<style>
-:root {
-    --accent: #4caf50;
-    --ai-purple: #bb86fc;
-    --save-blue: #00bcd4;
-    --clear-red: #ff5252;
-}
+  <meta charset="UTF-8" />
+  <title>ideOS+</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-body {
-    margin: 0;
-    background: #0b0b0b;
-    font-family: 'SF Mono', monospace;
-    display: flex;
-    height: 100vh;
-    color: #fff;
-    overflow: hidden;
-}
+  <!-- Pyodide for Python -->
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
 
-#left-panel {
-    width: 50%;
-    display: flex;
-    flex-direction: column;
-    border-right: 1px solid #222;
-    position: relative;
-}
+  <!-- Xterm.js -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.5.0/css/xterm.css" />
+  <script src="https://cdn.jsdelivr.net/npm/xterm@5.5.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
 
-#right-panel {
-    width: 50%;
-    background: #000;
-    position: relative;
-}
+  <!-- WebAssembly.sh Clang (Option B) -->
+  <script src="https://webassembly.sh/clang/16/clang.js"></script>
 
-#tabs {
-    background: #111;
-    display: flex;
-    padding: 10px;
-    gap: 8px;
-    border-bottom: 1px solid #222;
-    align-items: center;
-    overflow-x: auto;
-    white-space: nowrap;
-    scrollbar-width: thin;
-}
+  <style>
+    :root {
+      --accent: #4caf50;
+      --ai-purple: #bb86fc;
+      --save-blue: #00bcd4;
+      --clear-red: #ff5252;
+      --bg: #0b0b0b;
+      --bg-deep: #000000;
+      --fg: #ffffff;
+      --terminal-bg: #000000;
+      --terminal-fg: #e0ffe0;
+    }
 
-.tab {
-    color: #666;
-    font-size: 11px;
-    cursor: pointer;
-    padding: 6px 10px;
-    border: 1px solid transparent;
-    text-transform: uppercase;
-}
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: 'SF Mono', monospace;
+      color: var(--fg);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
 
-.tab.active {
-    color: var(--accent);
-    border: 1px solid var(--accent);
-}
+    /* Header / toolbar (kept visible) */
+    #toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      background: #111;
+      border-bottom: 1px solid #222;
+    }
 
-#project-name {
-    background: #000;
-    border: 1px solid #333;
-    color: var(--save-blue);
-    font-size: 11px;
-    padding: 5px;
-    outline: none;
-    width: 120px;
-}
+    #project-name {
+      background: #000;
+      border: 1px solid #333;
+      color: var(--save-blue);
+      font-size: 11px;
+      padding: 5px;
+      outline: none;
+      width: 140px;
+    }
 
-#editor {
-    flex: 1;
-    background: #0b0b0b;
-    color: #d4d4d4;
-    border: none;
-    padding: 20px;
-    font-size: 16px;
-    outline: none;
-    resize: none;
-    line-height: 1.5;
-    tab-size: 4;
-    white-space: pre;
-}
+    .tab {
+      color: #666;
+      font-size: 11px;
+      cursor: pointer;
+      padding: 6px 10px;
+      border: 1px solid transparent;
+      text-transform: uppercase;
+    }
 
-/* error highlighting */
-#editor.error {
-    border: 1px solid #ff4444;
-    box-shadow: 0 0 8px #ff4444;
-}
+    .tab.active {
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
 
-#preview {
-    width: 100%;
-    height: 100%;
-    border: none;
-    background: #fff;
-}
+    button {
+      background: rgba(0, 0, 0, 0.8);
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
 
-.overlay {
-    display: none;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: #000;
-    padding: 25px;
-    box-sizing: border-box;
-    z-index: 5;
-    overflow-y: auto;
-}
+    #status-light {
+      width: 10px;
+      height: 10px;
+      background: var(--clear-red);
+      border-radius: 50%;
+      box-shadow: 0 0 5px var(--clear-red);
+      margin-right: 6px;
+    }
 
-.controls {
-    position: absolute;
-    top: 15px;
-    right: 15px;
-    z-index: 1000;
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
+    /* Main layout: keep “editor + right side” feel */
+    #main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      grid-template-rows: 100%;
+      background: var(--bg-deep);
+    }
 
-#status-light {
-    width: 10px;
-    height: 10px;
-    background: var(--clear-red);
-    border-radius: 50%;
-    box-shadow: 0 0 5px var(--clear-red);
-}
+    #editor-panel {
+      border-right: 1px solid #222;
+      display: flex;
+      flex-direction: column;
+    }
 
-button {
-    background: rgba(0,0,0,0.8);
-    border: 1px solid var(--accent);
-    color: var(--accent);
-    padding: 8px 12px;
-    cursor: pointer;
-    font-size: 10px;
-    font-weight: bold;
-    text-transform: uppercase;
-}
+    #editor {
+      flex: 1;
+      background: #0b0b0b;
+      color: #d4d4d4;
+      border: none;
+      padding: 20px;
+      font-size: 16px;
+      outline: none;
+      resize: none;
+      line-height: 1.5;
+      tab-size: 4;
+      white-space: pre;
+      font-family: 'SF Mono', monospace;
+    }
 
-#library-panel {
-    display: none;
-    position: absolute;
-    left: 0;
-    top: 45px;
-    width: 220px;
-    height: calc(100% - 45px);
-    background: #111;
-    border-right: 1px solid var(--accent);
-    z-index: 2000;
-    padding: 15px;
-}
+    #editor.error {
+      border: 1px solid #ff4444;
+      box-shadow: 0 0 8px #ff4444;
+    }
 
-.snippet-btn {
-    width: 100%;
-    margin-bottom: 10px;
-    text-align: left;
-    border-color: #333;
-    color: #aaa;
-}
+    #right-panel {
+      display: flex;
+      flex-direction: column;
+      background: #050505;
+    }
 
-#l-in {
-    background: none;
-    border: none;
-    color: #fff;
-    outline: none;
-    width: 80%;
-    font-family: monospace;
-    font-size: 16px;
-}
+    /* HTML preview area (top of right panel) */
+    #preview-frame {
+      flex: 1;
+      border: none;
+      background: #111;
+    }
 
-/* cosmic autocomplete bubble */
-#autocomplete-box {
-    position: absolute;
-    background: rgba(0, 255, 0, 0.12);
-    border: 1px solid #00ff88;
-    color: #00ff88;
-    padding: 6px 10px;
-    font-size: 12px;
-    font-family: monospace;
-    border-radius: 6px;
-    pointer-events: none;
-    backdrop-filter: blur(4px);
-    box-shadow: 0 0 12px #00ff88;
-    display: none;
-    z-index: 9999;
-}
-</style>
+    /* Terminal area (bottom of right panel) */
+    #terminal-wrapper {
+      height: 40%;
+      border-top: 1px solid #222;
+      background: var(--terminal-bg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    #terminal-header {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-bottom: 1px solid #222;
+      color: #888;
+      text-transform: uppercase;
+    }
+
+    #terminal-container {
+      flex: 1;
+      padding: 4px;
+      box-sizing: border-box;
+    }
+
+    .xterm {
+      font-family: 'SF Mono', monospace;
+      font-size: 13px;
+    }
+
+    /* Autocomplete bubble (kept) */
+    #autocomplete-box {
+      position: absolute;
+      background: rgba(0, 255, 0, 0.12);
+      border: 1px solid #00ff88;
+      color: #00ff88;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-family: monospace;
+      border-radius: 6px;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 0 12px #00ff88;
+      display: none;
+      z-index: 9999;
+    }
+  </style>
 </head>
 <body>
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <div id="status-light"></div>
 
-<div id="left-panel">
-    <div id="tabs">
-        <button onclick="toggleLib()" style="border-color:#888; color:#888;">LIB</button>
-        <input type="text" id="project-name" value="my_project" title="Enter filename here">
+    <input
+      type="text"
+      id="project-name"
+      value="my_project"
+      title="Enter filename here"
+    />
 
-        <div id="html-tab" class="tab active" onclick="setMode('HTML')">HTML</div>
-        <div id="python-tab" class="tab" onclick="setMode('Python')">Python</div>
-        <div id="cpp-tab" class="tab" onclick="setMode('Cpp')">C++</div>
-        <div id="linux-tab" class="tab" onclick="setMode('Linux')">Linux</div>
-        <div id="swift-tab" class="tab" onclick="setMode('Swift')">Swift</div>
-        <div id="rust-tab" class="tab" onclick="setMode('Rust')">Rust</div>
-        <div id="java-tab" class="tab" onclick="setMode('Java')">Java</div>
+    <div id="html-tab" class="tab active" onclick="setMode('HTML')">HTML</div>
+    <div id="python-tab" class="tab" onclick="setMode('Python')">Python</div>
+    <div id="cpp-tab" class="tab" onclick="setMode('Cpp')">C++</div>
+    <div id="linux-tab" class="tab" onclick="setMode('Linux')">Linux</div>
 
-        <button onclick="clearCanvas()" style="border-color:var(--clear-red); color:var(--clear-red); margin-left:auto;">CLEAR</button>
+    <div style="flex:1"></div>
+
+    <button onclick="runCurrent()">Run</button>
+    <button onclick="newFile()">New File</button>
+    <button onclick="clearConsole()">Clear Console</button>
+    <button onclick="downloadCode()">Download Code</button>
+  </div>
+
+  <!-- Main layout: editor + right side (preview + terminal) -->
+  <div id="main">
+    <div id="editor-panel">
+      <textarea id="editor" spellcheck="true"></textarea>
+      <div id="autocomplete-box"></div>
     </div>
 
-    <div id="library-panel">
-        <div style="color:var(--accent); margin-bottom:15px; font-size:12px;">PROJECT SNIPPETS</div>
-        <button class="snippet-btn" onclick="inject('HTML_BTN')">Neon Button (HTML)</button>
-        <button class="snippet-btn" onclick="inject('JS_BOUNCE')">Physics Loop (JS)</button>
-        <button class="snippet-btn" onclick="inject('PY_SERVER')">Server Command (PY)</button>
-        <button class="snippet-btn" onclick="inject('RUST_HELLO')">Hello World (Rust)</button>
-        <button class="snippet-btn" onclick="inject('JAVA_HELLO')">Hello World (Java)</button>
+    <div id="right-panel">
+      <iframe id="preview-frame"></iframe>
+      <div id="terminal-wrapper">
+        <div id="terminal-header">Terminal</div>
+        <div id="terminal-container"></div>
+      </div>
     </div>
+  </div>
 
-    <textarea id="editor" spellcheck="true" placeholder=""></textarea>
-    <div id="autocomplete-box"></div>
-</div>
+  <script>
+    let mode = 'HTML';
+    let pyodide;
+    let term, fitAddon;
 
-<div id="right-panel">
-    <div class="controls">
-        <div id="status-light"></div>
-        <button style="border-color:var(--ai-purple); color:var(--ai-purple);" onclick="runAI()">AI ASSIST</button>
-        <button style="border-color:var(--save-blue); color:var(--save-blue);" onclick="save()">SAVE</button>
-        <button onclick="run()">RUN</button>
-    </div>
+    // stdin handling for terminal
+    const inputBuffer = [];
+    let waitingForInputResolve = null;
 
-    <iframe id="preview"></iframe>
+    function initTerminal() {
+      term = new Terminal({
+        theme: {
+          background: '#000000',
+          foreground: '#e0ffe0',
+          cursor: '#4caf50',
+        },
+        cursorBlink: true,
+        fontFamily: 'SF Mono, monospace',
+      });
+      fitAddon = new FitAddon.FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(document.getElementById('terminal-container'));
+      fitAddon.fit();
 
-    <div id="linux-term" class="overlay">
-        <div id="l-history">Limitless OS v3.8<br></div>
-        <br>
-        <span style="color:var(--accent)">root@system:~#</span>
-        <input type="text" id="l-in" autofocus>
-    </div>
+      term.writeln('ideOS+ terminal ready.');
+      term.writeln('');
 
-    <div id="log-view" class="overlay" onclick="this.style.display='none'"></div>
-</div>
-
-<script>
-let mode = 'HTML';
-let pyodide;
-
-async function init() {
-    pyodide = await loadPyodide();
-}
-init();
-
-function setMode(m) {
-    mode = m;
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.getElementById(m.toLowerCase() + '-tab').classList.add('active');
-    document.querySelectorAll('.overlay').forEach(o => o.style.display = 'none');
-    if (m === 'Linux') document.getElementById('linux-term').style.display = 'block';
-    checkErrors(); // re-check errors when mode changes
-}
-
-function clearCanvas() {
-    if (confirm("Wipe the editor?"))
-        document.getElementById('editor').value = "";
-    checkErrors();
-}
-
-function toggleLib() {
-    const lp = document.getElementById('library-panel');
-    lp.style.display = lp.style.display === 'block' ? 'none' : 'block';
-}
-
-function inject(type) {
-    const ed = document.getElementById('editor');
-    const snip = {
-        'HTML_BTN': '<button style="background:#000; color:#4caf50; border:2px solid #4caf50; padding:15px;">ACTIVE</button>',
-        'JS_BOUNCE': '// Animation Logic\nfunction animate() {\n console.log("running...");\n requestAnimationFrame(animate);\n}',
-        'PY_SERVER': 'python3 -m http.server 8000',
-        'RUST_HELLO': 'fn main() {\n    println!("Hello from Rust!");\n}',
-        'JAVA_HELLO': 'public class Main {\n  public static void main(String[] args) {\n    System.out.println("Hello from Java!");\n  }\n}'
-    };
-    ed.value += "\n" + (snip[type] || '');
-    checkErrors();
-    toggleLib();
-}
-
-async function run() {
-    const code = document.getElementById('editor').value;
-    const pre = document.getElementById('preview').contentWindow.document;
-
-    if (mode === 'HTML') {
-        pre.open();
-        pre.write(code);
-        pre.close();
-    }
-
-    else if (mode === 'Python') {
-        pre.open();
-        pre.write(`<body style="background:#000;color:#4caf50;padding:20px;font-family:monospace;"><pre id="o"></pre></body>`);
-        try {
-            pyodide.runPython(`import sys, io; sys.stdout = io.StringIO()`);
-            await pyodide.runPythonAsync(code);
-            pre.getElementById('o').innerText = pyodide.runPython("sys.stdout.getvalue()");
-        } catch(e) {
-            pre.getElementById('o').innerText = e;
+      term.onData((data) => {
+        if (data === '\r') {
+          term.write('\r\n');
+          const line = inputBuffer.join('');
+          inputBuffer.length = 0;
+          if (waitingForInputResolve) {
+            const resolve = waitingForInputResolve;
+            waitingForInputResolve = null;
+            resolve(line);
+          }
+        } else if (data === '\u007F') {
+          if (inputBuffer.length > 0) {
+            inputBuffer.pop();
+            term.write('\b \b');
+          }
+        } else {
+          inputBuffer.push(data);
+          term.write(data);
         }
-        pre.close();
+      });
+
+      window.addEventListener('resize', () => fitAddon.fit());
     }
 
-    else if (mode === 'Rust') {
-        pre.open();
-        pre.write(`
-            <body style="background:#000;color:#ff9800;padding:20px;font-family:monospace;">
-                <pre>Rust mode active. Compilation not supported in-browser.</pre>
-            </body>
-        `);
-        pre.close();
+    async function initPyodide() {
+      pyodide = await loadPyodide();
     }
 
-    else if (mode === 'Java') {
-        pre.open();
-        pre.write(`
-            <body style="background:#000;color:#4caf50;padding:20px;font-family:monospace;">
-                <pre>Java mode active. Compilation not supported in-browser.</pre>
-            </body>
-        `);
-        pre.close();
+    function setMode(m) {
+      mode = m;
+      document.querySelectorAll('.tab').forEach((t) =>
+        t.classList.remove('active')
+      );
+      document.getElementById(m.toLowerCase() + '-tab').classList.add('active');
+
+      // For HTML mode, show preview; for others, preview is just idle
+      if (mode === 'HTML') {
+        document.getElementById('preview-frame').style.display = 'block';
+      } else {
+        document.getElementById('preview-frame').style.display = 'none';
+      }
+
+      checkErrors();
     }
-}
 
-function runAI() {
-    const code = document.getElementById('editor').value;
-    const log = document.getElementById('log-view');
-    log.style.display = 'block';
+    function newFile() {
+      if (confirm('Clear editor?')) {
+        document.getElementById('editor').value = '';
+        checkErrors();
+      }
+    }
 
-    let advice = "No errors found. Logic is clean.";
-    if (mode === 'Python' && code.includes('def') && !code.includes(':'))
-        advice = "AI Error: Missing colon (:) in function.";
+    function clearConsole() {
+      term.clear();
+      term.writeln('ideOS+ terminal cleared.');
+      term.writeln('');
+    }
 
-    log.innerHTML = `<div style="color:var(--ai-purple)">[AI ADVISOR]</div><br>> ${advice}`;
-}
+    function downloadCode() {
+      const name = document.getElementById('project-name').value || 'my_project';
+      const ext =
+        mode === 'Python'
+          ? '.py'
+          : mode === 'HTML'
+          ? '.html'
+          : mode === 'Cpp'
+          ? '.cpp'
+          : '.txt';
+      const blob = new Blob([document.getElementById('editor').value], {
+        type: 'text/plain',
+      });
+      const a = document.createElement('a');
+      a.download = name + ext;
+      a.href = window.URL.createObjectURL(blob);
+      a.click();
+    }
 
-function save() {
-    const name = document.getElementById('project-name').value;
-    const ext = mode === 'Python' ? '.py'
-              : mode === 'HTML' ? '.html'
-              : mode === 'Swift' ? '.swift'
-              : mode === 'Cpp' ? '.cpp'
-              : mode === 'Rust' ? '.rs'
-              : mode === 'Java' ? '.java'
-              : '.txt';
+    function setStatusRunning(running) {
+      const light = document.getElementById('status-light');
+      if (running) {
+        light.style.background = '#4caf50';
+        light.style.boxShadow = '0 0 10px #4caf50';
+      } else {
+        light.style.background = '#ff5252';
+        light.style.boxShadow = '0 0 5px #ff5252';
+      }
+    }
 
-    const blob = new Blob([document.getElementById('editor').value], {type: 'text/plain'});
-    const a = document.createElement('a');
-    a.download = name + ext;
-    a.href = window.URL.createObjectURL(blob);
-    a.click();
-}
+    async function runCurrent() {
+      const code = document.getElementById('editor').value;
+      clearConsole();
+      setStatusRunning(true);
 
-const lIn = document.getElementById('l-in');
-const lHist = document.getElementById('l-history');
-
-lIn.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        const cmd = lIn.value;
-        lHist.innerHTML += `<div><span style="color:var(--accent)">root@system:~#</span> ${cmd}</div>`;
-
-        if (cmd.includes('python3 -m http.server')) {
-            document.getElementById('status-light').style.background = '#4caf50';
-            document.getElementById('status-light').style.boxShadow = '0 0 10px #4caf50';
-            lHist.innerHTML += "<div>[NETWORK] Server is now LIVE.</div>";
+      try {
+        if (mode === 'HTML') {
+          runHTML(code);
+        } else if (mode === 'Python') {
+          await runPython(code);
+        } else if (mode === 'Cpp') {
+          await runCpp(code);
+        } else if (mode === 'Linux') {
+          runLinux(code);
         }
-
-        lIn.value = "";
+      } catch (e) {
+        term.writeln('');
+        term.writeln('[ERROR] ' + e);
+      } finally {
+        setStatusRunning(false);
+      }
     }
-});
 
-// ===============================
-// COSMIC EDITOR ENGINE
-// ===============================
+    // ---------- HTML ----------
+    function runHTML(code) {
+      const iframe = document.getElementById('preview-frame');
+      iframe.style.display = 'block';
+      const doc = iframe.contentDocument || iframe.contentWindow.document;
+      doc.open();
+      doc.write(code);
+      doc.close();
+      term.writeln('[HTML] Rendered in preview frame.');
+    }
 
-const editor = document.getElementById("editor");
-const acBox = document.getElementById("autocomplete-box");
+    // ---------- Python with interactive input() ----------
+    async function runPython(code) {
+      if (!pyodide) await initPyodide();
 
-const acSuggestions = {
-    Python: ["print()", "def ", "class ", "import ", "return ", "range()", "len()", "if ", "elif ", "else:", "for ", "while "],
-    HTML: ["<div>", "<span>", "<script>", "<style>", "<img>", "<p>", "<a>", "<ul>", "<li>", "<header>", "<footer>"],
-    Cpp: ["int ", "std::cout << ;", "std::string ", "return ", "class ", "for ", "while ", "if ", "else "],
-    Rust: ["fn ", "let ", "println!()", "match ", "struct ", "impl ", "use "],
-    Java: ["public ", "class ", "static ", "void ", "System.out.println()", "if ", "else ", "for ", "while "],
-    Swift: ["func ", "let ", "var ", "import ", "print()", "if ", "else ", "for ", "while "],
-    Linux: ["ls", "cd", "mkdir", "rm", "touch", "cat", "echo"]
-};
+      term.writeln('[Python] Running...');
+      term.writeln('');
 
-let acMatches = [];
-let acIndex = 0;
+      pyodide.globals.set(
+        'js_input',
+        pyodide.toPy(async function prompt_line(promptText) {
+          if (promptText) {
+            term.write(promptText);
+          }
+          const line = await new Promise((resolve) => {
+            waitingForInputResolve = resolve;
+          });
+          return line;
+        })
+      );
 
-function getCaretCoordinates() {
-    const rect = editor.getBoundingClientRect();
-    const start = editor.selectionStart;
+      const wrapped = `
+import sys, io, builtins
+from js import js_input
 
-    const text = editor.value.substring(0, start);
-    const span = document.createElement("span");
-    span.style.visibility = "hidden";
-    span.style.whiteSpace = "pre-wrap";
-    span.style.font = window.getComputedStyle(editor).font;
-    span.textContent = text.replace(/\n/g, "\n");
-    document.body.appendChild(span);
+_stdout = io.StringIO()
+_stderr = io.StringIO()
+sys.stdout = _stdout
+sys.stderr = _stderr
 
-    const coords = span.getBoundingClientRect();
-    document.body.removeChild(span);
+async def __run():
+    builtins.input = js_input
+    ${code.replace(/\r\n/g, '\n')}
 
-    return {
-        x: coords.left - rect.left,
-        y: coords.top - rect.top
-    };
-}
+await __run()
+_stdout.getvalue(), _stderr.getvalue()
+      `;
 
-function showAutocomplete(suggestion) {
-    const pos = getCaretCoordinates();
-    acBox.style.left = pos.x + "px";
-    acBox.style.top = (pos.y + 20) + "px";
-    acBox.textContent = suggestion;
-    acBox.style.display = "block";
-}
+      try {
+        const [out, err] = await pyodide.runPythonAsync(wrapped);
+        if (out) term.writeln(out);
+        if (err) term.writeln(err);
+      } catch (e) {
+        term.writeln('[Python error] ' + e);
+      }
+    }
 
-function hideAutocomplete() {
-    acBox.style.display = "none";
-    acMatches = [];
-    acIndex = 0;
-}
+    // ---------- C++ via WebAssembly.sh Clang ----------
+    async function runCpp(code) {
+      term.writeln('[C++] Compiling with WebAssembly.sh Clang...');
+      term.writeln('');
 
-function checkErrors() {
-    const text = editor.value;
-    let error = false;
+      // WebAssembly.sh exposes a global "Module" for clang
+      // We use its virtual FS and callMain to compile & run.
+      // 1. Write source to virtual FS
+      const sourceName = 'main.cpp';
+      const outName = 'a.wasm';
 
-    // bracket/brace/paren balance
-    const stack = [];
-    const pairs = { ")": "(", "]": "[", "}": "{" };
-    for (let ch of text) {
-        if (ch === "(" || ch === "[" || ch === "{") stack.push(ch);
-        if (ch === ")" || ch === "]" || ch === "}") {
-            if (stack.pop() !== pairs[ch]) {
-                error = true;
-                break;
+      Module.FS.writeFile(sourceName, code);
+
+      // 2. Compile: clang main.cpp -O2 -o a.wasm --target=wasm32-wasi
+      const args = [
+        'clang',
+        sourceName,
+        '-O2',
+        '--target=wasm32-wasi',
+        '-nostartfiles',
+        '-Wl,--export=main',
+        '-o',
+        outName,
+      ];
+
+      term.writeln('$ ' + args.join(' '));
+
+      const clangExit = Module.callMain(args);
+      if (clangExit !== 0) {
+        term.writeln('[C++] clang failed with exit code ' + clangExit);
+        return;
+      }
+
+      term.writeln('[C++] Compilation successful, running...\n');
+
+      // 3. Load and run the produced WASM with WASI-like stdin/stdout
+      const wasmBytes = Module.FS.readFile(outName);
+      const wasmModule = await WebAssembly.compile(wasmBytes);
+
+      const wasiStdin = {
+        read: async () => {
+          const line = await new Promise((resolve) => {
+            waitingForInputResolve = resolve;
+          });
+          return line + '\n';
+        },
+      };
+
+      let stdoutBuffer = '';
+
+      const wasiImports = {
+        wasi_snapshot_preview1: {
+          fd_write: (fd, iov, iovcnt, pOut) => {
+            const mem = new DataView(wasmInstance.exports.memory.buffer);
+            let written = 0;
+            for (let i = 0; i < iovcnt; i++) {
+              const ptr = mem.getUint32(iov + i * 8, true);
+              const len = mem.getUint32(iov + i * 8 + 4, true);
+              const bytes = new Uint8Array(
+                wasmInstance.exports.memory.buffer,
+                ptr,
+                len
+              );
+              const text = new TextDecoder().decode(bytes);
+              stdoutBuffer += text;
+              written += len;
             }
-        }
-    }
-    if (!error && stack.length > 0) {
-        error = true;
+            term.write(stdoutBuffer);
+            stdoutBuffer = '';
+            mem.setUint32(pOut, written, true);
+            return 0;
+          },
+          fd_read: async (fd, iov, iovcnt, pOut) => {
+            const mem = new DataView(wasmInstance.exports.memory.buffer);
+            const line = await wasiStdin.read();
+            const bytes = new TextEncoder().encode(line);
+            const ptr = mem.getUint32(iov, true);
+            const len = Math.min(bytes.length, mem.getUint32(iov + 4, true));
+            new Uint8Array(wasmInstance.exports.memory.buffer, ptr, len).set(
+              bytes.subarray(0, len)
+            );
+            mem.setUint32(pOut, len, true);
+            return 0;
+          },
+          fd_close: () => 0,
+          fd_seek: () => 0,
+          fd_fdstat_get: () => 0,
+          proc_exit: (code) => {
+            term.writeln('\n[Process exited with code ' + code + ']');
+          },
+        },
+      };
+
+      const wasmInstance = await WebAssembly.instantiate(wasmModule, wasiImports);
+      if (wasmInstance.exports._start) {
+        wasmInstance.exports._start();
+      } else if (wasmInstance.exports.main) {
+        wasmInstance.exports.main();
+      } else {
+        term.writeln('[C++] No entry point found.');
+      }
     }
 
-    // HTML tag balance
-    if (!error && mode === "HTML") {
+    // ---------- Linux tab ----------
+    function runLinux(code) {
+      term.writeln('[Linux] This tab uses the same terminal.');
+      term.writeln('You can paste shell-like commands or notes here.');
+      term.writeln('');
+      if (code.trim()) {
+        term.writeln(code);
+      }
+    }
+
+    // ---------- Autocomplete + error checking (kept, trimmed) ----------
+    const editor = document.getElementById('editor');
+    const acBox = document.getElementById('autocomplete-box');
+    const acSuggestions = {
+      Python: ['print()', 'def ', 'class ', 'import ', 'return ', 'for ', 'while '],
+      HTML: ['<div>', '<span>', '<script>', '<style>', '<p>', '<a>', '<ul>', '<li>'],
+      Cpp: ['int ', 'std::cout << ', 'std::string ', 'return ', 'class ', 'for ', 'while ', 'if '],
+      Linux: ['echo ', 'ls', 'cd ', 'cat ', 'touch ', 'mkdir '],
+    };
+
+    let acMatches = [];
+    let acIndex = 0;
+
+    function getCaretCoordinates() {
+      const rect = editor.getBoundingClientRect();
+      const start = editor.selectionStart;
+      const text = editor.value.substring(0, start);
+      const span = document.createElement('span');
+      span.style.visibility = 'hidden';
+      span.style.whiteSpace = 'pre-wrap';
+      span.style.font = window.getComputedStyle(editor).font;
+      span.textContent = text.replace(/\n/g, '\n');
+      document.body.appendChild(span);
+      const coords = span.getBoundingClientRect();
+      document.body.removeChild(span);
+      return { x: coords.left - rect.left, y: coords.top - rect.top };
+    }
+
+    function showAutocomplete(suggestion) {
+      const pos = getCaretCoordinates();
+      acBox.style.left = pos.x + 'px';
+      acBox.style.top = pos.y + 20 + 'px';
+      acBox.textContent = suggestion;
+      acBox.style.display = 'block';
+    }
+
+    function hideAutocomplete() {
+      acBox.style.display = 'none';
+      acMatches = [];
+      acIndex = 0;
+    }
+
+    function checkErrors() {
+      const text = editor.value;
+      let error = false;
+
+      const stack = [];
+      const pairs = { ')': '(', ']': '[', '}': '{' };
+      for (let ch of text) {
+        if (ch === '(' || ch === '[' || ch === '{') stack.push(ch);
+        if (ch === ')' || ch === ']' || ch === '}') {
+          if (stack.pop() !== pairs[ch]) {
+            error = true;
+            break;
+          }
+        }
+      }
+      if (!error && stack.length > 0) error = true;
+
+      if (!error && mode === 'HTML') {
         const tagStack = [];
         const tagRegex = /<\/?([a-zA-Z0-9]+)[^>]*>/g;
         let m;
         while ((m = tagRegex.exec(text)) !== null) {
-            const full = m[0];
-            const name = m[1];
-            if (full.startsWith("</")) {
-                if (tagStack.pop() !== name) {
-                    error = true;
-                    break;
-                }
-            } else if (!full.endsWith("/>")) {
-                tagStack.push(name);
+          const full = m[0];
+          const name = m[1];
+          if (full.startsWith('</')) {
+            if (tagStack.pop() !== name) {
+              error = true;
+              break;
             }
+          } else if (!full.endsWith('/>')) {
+            tagStack.push(name);
+          }
         }
-        if (!error && tagStack.length > 0) {
-            error = true;
-        }
+        if (!error && tagStack.length > 0) error = true;
+      }
+
+      if (error) editor.classList.add('error');
+      else editor.classList.remove('error');
     }
 
-    if (error) {
-        editor.classList.add("error");
-    } else {
-        editor.classList.remove("error");
-    }
-}
-
-function autoCloseHtmlTag() {
-    const cursor = editor.selectionStart;
-    const text = editor.value;
-    const before = text.substring(0, cursor);
-    const match = before.match(/<([a-zA-Z0-9]+)[^>]*>$/);
-    if (!match) return;
-
-    const tag = match[1];
-    if (before.endsWith("/>") || tag.startsWith("!")) return;
-
-    const insert = `</${tag}>`;
-    const after = text.substring(cursor);
-    editor.value = before + insert + after;
-    editor.selectionStart = editor.selectionEnd = cursor;
-}
-
-editor.addEventListener("input", () => {
-    const text = editor.value;
-    const cursorPos = editor.selectionStart;
-
-    const before = text.substring(0, cursorPos);
-    const match = before.match(/[\w<>!]+$/);
-    if (!match) {
+    editor.addEventListener('input', () => {
+      const text = editor.value;
+      const cursorPos = editor.selectionStart;
+      const before = text.substring(0, cursorPos);
+      const match = before.match(/[\w<>!]+$/);
+      if (!match) {
         hideAutocomplete();
         checkErrors();
         return;
-    }
-
-    const currentWord = match[0];
-    const list = acSuggestions[mode] || [];
-
-    acMatches = list.filter(s => s.startsWith(currentWord));
-    acIndex = 0;
-
-    if (acMatches.length === 0) {
+      }
+      const currentWord = match[0];
+      const list = acSuggestions[mode] || [];
+      acMatches = list.filter((s) => s.startsWith(currentWord));
+      acIndex = 0;
+      if (acMatches.length === 0) {
         hideAutocomplete();
-    } else {
+      } else {
         showAutocomplete(acMatches[0]);
-    }
+      }
+      checkErrors();
+    });
 
-    checkErrors();
-});
-
-editor.addEventListener("keydown", (e) => {
-    // Tab / Shift+Tab: cycle suggestions
-    if (e.key === "Tab" && acBox.style.display === "block") {
+    editor.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab' && acBox.style.display === 'block') {
         e.preventDefault();
-
         if (e.shiftKey) {
-            acIndex = (acIndex - 1 + acMatches.length) % acMatches.length;
-            showAutocomplete(acMatches[acIndex]);
-            return;
+          acIndex = (acIndex - 1 + acMatches.length) % acMatches.length;
+          showAutocomplete(acMatches[acIndex]);
+          return;
         }
-
         if (acMatches.length > 1) {
-            acIndex = (acIndex + 1) % acMatches.length;
-            showAutocomplete(acMatches[acIndex]);
-            return;
+          acIndex = (acIndex + 1) % acMatches.length;
+          showAutocomplete(acMatches[acIndex]);
+          return;
         }
-    }
+      }
 
-    // Enter: accept suggestion
-    if (e.key === "Enter" && acBox.style.display === "block") {
+      if (e.key === 'Enter' && acBox.style.display === 'block') {
         e.preventDefault();
-
         const suggestion = acMatches[acIndex];
         const cursorPos = editor.selectionStart;
         const text = editor.value;
-
         const before = text.substring(0, cursorPos);
         const after = text.substring(cursorPos);
-
         const match = before.match(/[\w<>!]+$/);
         if (!match) return;
-
         const start = match.index;
         const newText = before.substring(0, start) + suggestion + after;
-
         editor.value = newText;
-
-        const parenIndex = suggestion.indexOf("(");
-        if (parenIndex !== -1 && suggestion.endsWith(")")) {
-            editor.selectionStart = editor.selectionEnd = start + parenIndex + 1;
+        const parenIndex = suggestion.indexOf('(');
+        if (parenIndex !== -1 && suggestion.endsWith(')')) {
+          editor.selectionStart = editor.selectionEnd = start + parenIndex + 1;
         } else {
-            editor.selectionStart = editor.selectionEnd = start + suggestion.length;
+          editor.selectionStart = editor.selectionEnd = start + suggestion.length;
         }
-
         hideAutocomplete();
         checkErrors();
         return;
-    }
+      }
 
-    // Auto-indent when no autocomplete bubble
-    if (e.key === "Enter" && acBox.style.display !== "block") {
+      if (e.key === 'Enter' && acBox.style.display !== 'block') {
         e.preventDefault();
-
         const cursorPos = editor.selectionStart;
         const text = editor.value;
-
         const before = text.substring(0, cursorPos);
         const after = text.substring(cursorPos);
-
-        const lineStart = before.lastIndexOf("\n") + 1;
+        const lineStart = before.lastIndexOf('\n') + 1;
         const currentLine = before.substring(lineStart);
         const indentMatch = currentLine.match(/^\s*/);
-        let indent = indentMatch ? indentMatch[0] : "";
-
+        let indent = indentMatch ? indentMatch[0] : '';
         const trimmed = currentLine.trimEnd();
         if (/[{:]$/.test(trimmed)) {
-            indent += "    ";
+          indent += ' ';
         }
-
-        const insert = "\n" + indent;
+        const insert = '\n' + indent;
         editor.value = before + insert + after;
         editor.selectionStart = editor.selectionEnd = cursorPos + insert.length;
-
         checkErrors();
         return;
-    }
+      }
+    });
 
-    // HTML tag auto-closing on ">"
-    if (e.key === ">" && mode === "HTML") {
-        setTimeout(autoCloseHtmlTag, 0);
-    }
-});
-</script>
+    // Init
+    window.addEventListener('load', () => {
+      initTerminal();
+      initPyodide();
+      document.getElementById('preview-frame').style.display = 'block';
+    });
+  </script>
 </body>
 </html>
